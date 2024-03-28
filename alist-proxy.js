@@ -40,11 +40,24 @@ var hmacSha256Sign = async (data, expire) => {
   return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_") + ":" + expire;
 };
 
+var decodepath = async (pathname) => {
+  let path = pathname.split('/');
+  let address = atob(path[1]);
+  if (address.startsWith("http")) {
+    path[1] = path[0];
+    pathname = path.slice(1).join('/');
+  } else {
+    address = ADDRESS;
+  }
+  pathname = decodeURIComponent(pathname);
+  return [address, pathname];
+}
+
 // src/handleDownload.ts
 async function handleDownload(request) {
   const origin = request.headers.get("origin") ?? "*";
   const url = new URL(request.url);
-  const path = decodeURIComponent(url.pathname);
+  const [address, path] = await decodepath(url.pathname);
   const sign = url.searchParams.get("sign") ?? "";
   const verifyResult = await verify(path, sign);
   if (verifyResult !== "") {
@@ -62,7 +75,7 @@ async function handleDownload(request) {
     resp2.headers.set("Access-Control-Allow-Origin", origin);
     return resp2;
   }
-  let resp = await fetch(`${ADDRESS}/api/fs/link`, {
+  let resp = await fetch(`${address}/api/fs/link`, {
     method: "POST",
     headers: {
       "content-type": "application/json;charset=UTF-8",
@@ -121,6 +134,8 @@ function handleOptions(request) {
 // src/index.ts
 var src_default = {
   async fetch(request, env, ctx) {
+    ADDRESS = env.ADDRESS || ADDRESS
+    TOKEN = env.TOKEN || TOKEN
     if (request.method === "OPTIONS") {
       return handleOptions(request);
     }
